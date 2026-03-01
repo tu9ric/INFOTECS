@@ -6,6 +6,8 @@ from app.db import init_db
 from app.api import router
 from app.scheduler import updater_loop
 
+
+# старт программы, запуск основного цикла работы и завершение программы через lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -19,9 +21,12 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
 
+
 app = FastAPI(lifespan=lifespan)
+# connect endpoints
 app.include_router(router)
 
+# проверка работоспособности сервиса
 @app.get("/health")
 async def health():
     return {"status": "ok"}

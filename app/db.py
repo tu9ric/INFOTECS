@@ -3,6 +3,13 @@ from app.config import DB_PATH
 
 CREATE_SQL = """
 PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS cities (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -10,6 +17,14 @@ CREATE TABLE IF NOT EXISTS cities (
   lat REAL NOT NULL,
   lon REAL NOT NULL,
   created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_cities (
+  user_id INTEGER NOT NULL,
+  city_id INTEGER NOT NULL,
+  UNIQUE(user_id, city_id), 
+  FOREIGN KEY(user_id) REFERENCES users(id),
+  FOREIGN KEY(city_id) REFERENCES cities(id)
 );
 
 CREATE TABLE IF NOT EXISTS forecasts (

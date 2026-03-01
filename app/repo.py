@@ -10,6 +10,40 @@ from app.config import DB_PATH, UPDATE_INTERVAL_SECONDS
 def utcnow_iso() -> str:
     return datetime.utcnow().isoformat()
 
+# ----------------------------------------------USERS--------------------------------
+async def list_users() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT id, username, created_at FROM users ORDER BY id"
+        )
+        rows = await cur.fetchall()
+    return [{"id": uid, "username": uname, "created_at": created} for (uid, uname, created) in rows]
+
+async def delete_user(user_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA foreign_keys=ON;")
+        await db.execute("DELETE FROM user_cities WHERE user_id=?", (user_id,))
+        cur = await db.execute("DELETE FROM users WHERE id=?", (user_id,))
+        await db.commit()
+        return cur.rowcount
+
+async def insert_user(username: str) -> int:
+    now = utcnow_iso()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "INSERT INTO users(username, created_at) VALUES(?,?)", 
+            (username, now),
+        )
+        await db.commit()
+        return cur.lastrowid
+
+async def user_exists(user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT 1 FROM users WHERE id=?", (user_id,))
+        row = await cur.fetchone()
+    return row is not None
+
+
 def parse_iso(ts: str) -> Optional[datetime]:
     try:
         dt = datetime.fromisoformat(ts)
@@ -27,6 +61,60 @@ def is_stale(updated_at: Optional[str]) -> bool:
         return True
     age = (datetime.now(timezone.utc) - dt).total_seconds()
     return age >= UPDATE_INTERVAL_SECONDS
+
+
+async def unlink_user_city(user_id: int, city_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "DELETE FROM user_cities WHERE user_id=? AND city_id=?",
+            (user_id, city_id),
+        )
+        await db.commit()
+        return cur.rowcount
+
+# ----------------------------------- user_cities ----------------------
+async def get_city_coords(city_id: int) -> tuple[float, float] | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT lat, lon FROM cities WHERE id=?", (city_id,))
+        row = await cur.fetchone()
+    if not row:
+        return None
+    return float(row[0]), float(row[1])
+
+async def link_user_city(user_id: int, city_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO user_cities(user_id, city_id) VALUES(?,?)",
+            (user_id, city_id),
+        )
+        await db.commit()
+
+
+async def user_has_city(user_id: int, city_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT 1 FROM user_cities WHERE user_id=? AND city_id=?",
+            (user_id, city_id),
+        )
+        row = await cur.fetchone()
+    return row is not None
+
+async def list_user_cities(user_id: int) -> list[dict[str, Any]]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            """
+            SELECT c.name, c.lat, c.lon
+            FROM cities c
+            JOIN user_cities uc ON uc.city_id = c.id
+            WHERE uc.user_id = ?
+            ORDER BY c.name
+            """,
+            (user_id,),
+        )
+        rows = await cur.fetchall()
+    return [{"name": n, "lat": la, "lon": lo} for (n, la, lo) in rows]
+
+
 
 async def insert_city(name: str, lat: float, lon: float) -> int:
     now = utcnow_iso()
