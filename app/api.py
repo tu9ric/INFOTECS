@@ -8,10 +8,10 @@ from app.forecast import normalize_time_to_today_iso, parse_fields, pick_at_time
 
 from app.repo import (
     insert_user, user_exists,
-    insert_city, get_city_id, get_city_coords,
+    insert_city, get_city_id,
     link_user_city, list_user_cities, user_has_city,
     upsert_forecast, get_today_hourly, 
-    unlink_user_city, list_users, delete_user
+    unlink_user_city, list_users, delete_user, list_cities
 )
 
 router = APIRouter()
@@ -100,11 +100,11 @@ async def weather_at_for_user(user_id: int, q: WeatherAtQuery = Depends()):
     if not await user_exists(user_id):
         raise HTTPException(404, "User not found")
     
-    city = normalize_city_name(city)
+    city = normalize_city_name(q.city)
     if not city:
         raise HTTPException(400, "City is empty")
 
-    city_id = await get_city_id(city)
+    city_id = await get_city_id(q.city)
     if city_id is None:
         raise HTTPException(404, "City not found")
 
